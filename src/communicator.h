@@ -34,7 +34,6 @@ struct ImagingUsbDevice {
 	uint16_t iProductId;
 	unsigned char iVendorName[256];
 	unsigned char iProductName[256];
-//	unsigned char iSerial[256];
 };
 
 struct PtpPacket{
@@ -56,15 +55,12 @@ public:
 private:
 	int mSocket;
 	libusb_context *mCtx;
-	//bool mIsInitialized;
-	//bool mIsUsbInitialized;
 	pthread_t clientThread;
 
 	libusb_device *mDevice;
 	libusb_device_handle *mHandle;
 
 	int mImagingInterface;
-	//bool mInterfaceClaimed;
 	uint8_t mReadEndpoint;
 	uint8_t mWriteEndpoint;
 

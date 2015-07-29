@@ -7,9 +7,9 @@
 
 #include "communicator.h"
 
-Communicator::Communicator() : mSocket(0), mCtx(NULL), //mIsInitialized(false), mIsUsbInitialized(false),
+Communicator::Communicator() : mSocket(0), mCtx(NULL),
 							   mHandle(NULL), mDevice(NULL), mImagingInterface(-1),
-							   mVendorId(0), mProductId(0) //, mInterfaceClaimed(false)
+							   mVendorId(0), mProductId(0)
 {
 	int r = libusb_init(&mCtx);
 	if (r == 0)
@@ -54,8 +54,6 @@ void Communicator::handleClientConnection(int socket)
 
 	if (setsockopt (mSocket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
 	        syslog(LOG_ERR, "SNDTIMEO setsockopt failed");
-//	if (setsockopt (mSocket, SOL_SOCKET, TCP_USER_TIMEOUT, &keep_alive, sizeof(int)) < 0 )
-//		 syslog(LOG_ERR, "KEEPALIVE setsockopt failed");
 	if (setsockopt(mSocket, SOL_SOCKET, SO_KEEPALIVE, &keep_alive, sizeof(int)) < 0)
 		syslog(LOG_ERR, "KEEPALIVE setsockopt failed");
 
@@ -101,7 +99,6 @@ bool Communicator::readFromClient()
 
 	if (r == 4) {
 		packetSize = le32toh(packetSize);
-		//syslog(LOG_INFO, "incoming packet size: %d", packetSize);
 
 		uint8_t *buf = (uint8_t *) malloc(packetSize - 4);
 
@@ -139,12 +136,6 @@ int Communicator::sendResponsePacket(uint16_t responseCode, uint32_t sessionId)
 	*(uint32_t *)&buf[0] = (uint32_t)htole32(len);
 
 	setPtpHeader(buf, 4, len-4, 0x0003, responseCode, sessionId);
-
-//	PtpPacket *ptpPacket = (PtpPacket *)&buf[4];
-//	ptpPacket->packet_len = htole32(len - 4);
-//	ptpPacket->packet_type = htole16(0x0003);
-//	ptpPacket->packet_command = htole16(responseCode);
-//	ptpPacket->session_ID = htole32(sessionId);
 
 	int r = sendBuffer(buf, len);
 
@@ -188,7 +179,6 @@ void Communicator::initiateUsbConnection(uint32_t vendorId, uint32_t productId, 
 
 bool Communicator::processPacket(uint8_t *buf, int size)
 {
-	//syslog(LOG_INFO, "processing incoming packet");
 	PtpPacket *header = (PtpPacket *)&buf[0];
 
 	// device selector command, if initialized then ignore
@@ -248,15 +238,12 @@ bool Communicator::processUsbPacket(uint8_t * buf, int size)
 	int packetSize = le32toh(header->packet_len);
 	int writen = 0;
 
-//	syslog(LOG_INFO, "sending packet to USB device");
 
 	int r = libusb_bulk_transfer(mHandle, mWriteEndpoint, &buf[0], packetSize, &writen, 4000);
-//	syslog(LOG_INFO, "packet size: %d  writen to USB: %d", packetSize, writen);
 	if (r == 0) {
 		if (writen != packetSize)
 			syslog(LOG_ERR, "Command Packet size was: %d  writen: %d", packetSize, writen);
 		if (size > packetSize) {
-//			syslog(LOG_INFO, "sending PTP data packet");
 			// there is a data packet, write
 			header = (PtpPacket *)&buf[packetSize];
 			r = libusb_bulk_transfer(mHandle, mWriteEndpoint, &buf[packetSize], le32toh(header->packet_len), &writen, 4000);
@@ -303,17 +290,16 @@ uint8_t * Communicator::readUsbPacket(int &length)
 	uint8_t *buf = (uint8_t *)malloc(currentPacketSize);
 
 	if (readPtpPacket(&buf[offset], currentPacketSize - offset, readBytes)) {
-//		syslog(LOG_INFO, "first currentPacketSize: %d  offset: %d   readBytes: %d", currentPacketSize, offset, readBytes);
 
 		ptpPacket = (PtpPacket *)&buf[4];
 		packetSize1 = le32toh(ptpPacket->packet_len);
 		isResponse = le16toh(ptpPacket->packet_type) == 0x0003;
-//		syslog(LOG_INFO, "packetSize1: %d", packetSize1);
 
 		if (packetSize1 > (uint32_t)(currentPacketSize - 4)) {
 			offset = currentPacketSize;
 			currentPacketSize = 4 + packetSize1 + 4096;
 			buf = (uint8_t *)realloc(buf, currentPacketSize);
+			// FIXME
 			if (readPtpPacket(&buf[offset], packetSize1 - (offset-4 ), readBytes)) {
 //				syslog(LOG_INFO, "second packetSize1: %d currentPacketSize: %d  offset: %d   readBytes: %d", packetSize1, currentPacketSize, offset, readBytes);
 			}
@@ -328,36 +314,24 @@ uint8_t * Communicator::readUsbPacket(int &length)
 			if (!isResponse) {
 				// read in the respone
 				offset = 4 + packetSize1;
-//				syslog(LOG_INFO, "first was data, read response currentPacketSize: %d  offset: %d", currentPacketSize, offset);
 
 				// ensure there is enough for response packet - 128 bytes should be enough
 				if (currentPacketSize < (offset + 128)) {
-//					syslog(LOG_INFO, "Packet increased for response packet");
 					currentPacketSize = offset + 128;
 					buf = (uint8_t *)realloc(buf, currentPacketSize);
 				}
-//				if (readPtpPacket(&buf[offset], currentPacketSize - offset, readBytes))
-//				{
-//					syslog(LOG_INFO, "Response packet read bytes: %d", readBytes);
-//					// set final total packet size
-//					*(uint32_t *)&buf[0] = htole32(offset + readBytes);
-//					return buf;
-//				}
-//				else
-//					syslog(LOG_ERR, "Error reading rest of the response packet");
 
 				if (readPtpPacket(&buf[offset], currentPacketSize - packetSize1 - 4, readBytes)) {
-//					syslog(LOG_INFO, "response packet load");
 
 					ptpPacket = (PtpPacket *)&buf[offset];
 					packetSize2 = le32toh(ptpPacket->packet_len);
 
 					if (packetSize2 > (currentPacketSize - packetSize1 - 4)) {
-//						syslog(LOG_INFO, "increase buffer");
 						offset = currentPacketSize;
 						currentPacketSize = 4 + packetSize1 + packetSize2;
 						buf = (uint8_t *)realloc(buf, currentPacketSize);
 
+						// FIXME
 						if (readPtpPacket(&buf[offset], packetSize2 - (offset - 4 - packetSize1), readBytes)) {
 						}
 					}
@@ -384,10 +358,8 @@ bool Communicator::readPtpPacket(uint8_t *buf, int bufSize, int &length )
 	length = 0;
 	int r, readBytes = 0;
 
-//	syslog(LOG_INFO,"readPtpPacket");
 	while (true) {
 		r = libusb_bulk_transfer(mHandle, mReadEndpoint, buf, bufSize, &readBytes, 4000);
-//		syslog(LOG_INFO, "USB read result: %d  read bytes: %d", r, readBytes);
 		if (r == 0) {
 			if (readBytes > 0) {
 				success = true;
@@ -417,17 +389,17 @@ bool Communicator::openUsbDevice(uint16_t vendorId, uint16_t productId)
 	mVendorId = 0;
 	mProductId = 0;
 	bool result = false;
-	libusb_device **devs; //pointer to pointer of device, used to retrieve a list of devices
+	libusb_device **devs; // used to retrieve a list of devices
 	libusb_device_descriptor desc;
 	int r = 0;
 	ssize_t cnt; //holding number of devices in list
 
 	if (isUsbContextInitialized()) {
 
-		cnt = libusb_get_device_list(mCtx, &devs); //get the list of devices
+		cnt = libusb_get_device_list(mCtx, &devs);
 		if (cnt > 0) {
 			syslog(LOG_INFO, "USB Devices in");
-			ssize_t i = 0; //for iterating through the list
+			ssize_t i = 0;
 			while(i < cnt) {
 				libusb_device *device = devs[i];
 				r = libusb_get_device_descriptor(device, &desc);
@@ -537,7 +509,6 @@ bool Communicator::claimInterface(uint8_t readEp, uint8_t writeEp, int interface
 		r = libusb_claim_interface(mHandle, mImagingInterface); //claim imaging interface
 		if (r == 0) {
 			syslog(LOG_INFO, "USB interface claimed");
-			//mIsInitialized = true;
 			return true;
 		}
 
@@ -594,7 +565,7 @@ bool Communicator::canOpenUsbImagingDevice(libusb_device *dev, libusb_device_des
 						} else {
 							if (libusb_kernel_driver_active(deviceHandle, 0) == 0) { //find out if kernel driver is attached
 
-								if( libusb_claim_interface(deviceHandle, i) == 0) {; //claim imaging interface
+								if(libusb_claim_interface(deviceHandle, i) == 0) {
 
 									libusb_release_interface(deviceHandle, i);
 
@@ -638,14 +609,16 @@ void Communicator::closeUsbDevice()
 }
 void Communicator::sendUsbDeviceList(uint32_t sessionId)
 {
-	libusb_device **devs; //pointer to pointer of device, used to retrieve a list of devices
+
+  //TODO remove duplicated code
+	libusb_device **devs;
 
 	ssize_t cnt; //holding number of devices in list
 	std::vector<ImagingUsbDevice> imgUsbDevices;
 
 	if (isUsbContextInitialized()) {
 
-		cnt = libusb_get_device_list(mCtx, &devs); //get the list of devices
+		cnt = libusb_get_device_list(mCtx, &devs);
 		if (cnt < 0) {
 			syslog(LOG_INFO, "Can't found USB devices");
 		}
@@ -662,7 +635,7 @@ void Communicator::sendUsbDeviceList(uint32_t sessionId)
 		syslog(LOG_INFO, "Imaging USB devices found: %lu", imgUsbDevices.size());
 	}
 
-	libusb_free_device_list(devs, 1); //free the list, unref the devices in it
+	libusb_free_device_list(devs, 1);
 
 	if (imgUsbDevices.size() > 0)
 	{
@@ -746,6 +719,7 @@ bool Communicator::isUsbImagingDevice(libusb_device *dev, ImagingUsbDevice *imgU
 					syslog(LOG_INFO, "Error opening USB imaging device: %d", r);
 					break;
 				} else {
+				  //TODO remove duplicated code
 					if (libusb_kernel_driver_active(deviceHandle, 0) == 0) { //find out if kernel driver is attached
 
 						if( libusb_claim_interface(deviceHandle, i) == 0) {; //claim imaging interface
@@ -756,10 +730,6 @@ bool Communicator::isUsbImagingDevice(libusb_device *dev, ImagingUsbDevice *imgU
 							imgUsbDevice->iProductId = desc.idProduct;
 							bzero(&imgUsbDevice->iVendorName[0], 255);
 							bzero(&imgUsbDevice->iProductName[0], 255);
-//							bzero(&imgUsbDevice.iSerial[0], 255);
-
-//							 libusb_get_string_descriptor(deviceHandle, 0, 0, &serial[0], 255);
-//							 lang = serial[2] << 8 | serial[3];
 
 							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iManufacturer, &(imgUsbDevice->iVendorName[0]), 255);
 							if (r <= 0)
@@ -767,18 +737,12 @@ bool Communicator::isUsbImagingDevice(libusb_device *dev, ImagingUsbDevice *imgU
 							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iProduct, &(imgUsbDevice->iProductName[0]), 255);
 							if (r <= 0)
 								syslog(LOG_ERR, "Error getting USB Product name: %d", r);
-//							r = libusb_get_string_descriptor_ascii(deviceHandle, desc.iSerialNumber, &(imgUsbDevice.iSerial[0]), 255);
-//							if (r <= 0)
-//								syslog(LOG_ERR, "Error getting USB serial: %d", r);
 
 							libusb_release_interface(deviceHandle, i);
 							libusb_close(deviceHandle);
 
 							syslog(LOG_INFO, "Device Manufacturer: %s", imgUsbDevice->iVendorName);
 							syslog(LOG_INFO, "Device Product: %s", imgUsbDevice->iProductName);
-//							syslog(LOG_INFO, "Device Serial: %s", imgUsbDevice.iSerial);
-//							uint32_t hash = getHash(&serial[0]);
-//							syslog(LOG_INFO, "Device Serial hash: %08x", hash);
 							return true;
 						}
 					}

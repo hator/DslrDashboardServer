@@ -12,10 +12,7 @@ using namespace std;
 
 int main() {
 
-	syslog(LOG_INFO, "DslrDashboardServer starting"); // prints DslrDashboardServer
-
-//	if (fork() == 0)
-//		startUdpListener();
+	syslog(LOG_INFO, "DslrDashboardServer starting");
 
 	pthread_t myThread;
 	int r = pthread_create(&myThread, NULL, udpThread, NULL);
@@ -37,7 +34,7 @@ void * udpThread(void *param) {
 int createUdpSocket()
 {
 	struct sockaddr_in LocalHost;
-	int             UDPsocket;
+	int UDPsocket;
 
 	LocalHost.sin_family = AF_INET;
 	LocalHost.sin_port = htons(UDP_PORT);
@@ -61,31 +58,12 @@ void startUdpListener() {
 
 	syslog(LOG_INFO, "Starting UDP listener");
 
-//	struct sockaddr_in LocalHost;
-	int             UDPsocket;
-//
-//	LocalHost.sin_family = AF_INET;
-//	LocalHost.sin_port = htons(UDP_PORT);
-//	LocalHost.sin_addr.s_addr = htonl(INADDR_ANY);
-//
+	int UDPsocket;
 	struct sockaddr_in GroupAddress;
 
 	GroupAddress.sin_family = AF_INET;
 	GroupAddress.sin_port = htons(UDP_PORT);
 	GroupAddress.sin_addr.s_addr = inet_addr(UDP_GROUP);
-//
-//	if ((UDPsocket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-//		syslog(LOG_ERR, "can't create UDP socket: %d", UDPsocket);
-//		exit(-1);
-//	}
-//	reusePort(UDPsocket);
-//
-//	if (bind(UDPsocket, (SA *) & LocalHost, sizeof(LocalHost)) < 0) {
-//
-//		syslog(LOG_ERR, "Error binding UDP socket");
-//
-//		exit(-1);
-//	}
 
 	while ((UDPsocket = createUdpSocket()) < 0) {
 		syslog(LOG_INFO, "Error creating UDP socket, retry after 3 seconds");
@@ -105,7 +83,6 @@ void startUdpListener() {
 
 	const int				on = 1;
 	if (setsockopt(UDPsocket, IPPROTO_IP, IP_PKTINFO, &on, sizeof(on)) < 0){
-		//printf("Error settings IP_PKTINFO");
 		syslog(LOG_ERR, "Error settings IP_PKTINFO");
 	}
 
@@ -153,59 +130,9 @@ void startUdpListener() {
 				free(buf);
 			}
 
-//			for ( // iterate through all the control headers
-//					struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mh);
-//					cmsg != NULL;
-//					cmsg = CMSG_NXTHDR(&mh, cmsg))
-//			{
-//				// ignore the control headers that don't match what we want
-//				if (cmsg->cmsg_level != IPPROTO_IP || cmsg->cmsg_type != IP_PKTINFO)
-//					continue;
-//
-//				struct in_pktinfo *pi = (in_pktinfo *)CMSG_DATA(cmsg);
-//
-//				// at this point, peeraddr is the source sockaddr
-//				// pi->ipi_spec_dst is the destination in_addr
-//				// pi->ipi_addr is the receiving interface in_addr
-//
-//				syslog(LOG_INFO,"tst %s %d %s", inet_ntoa(pi->ipi_addr), pi->ipi_ifindex, inet_ntoa(pi->ipi_spec_dst));
-//
-//				write(1, recvBuf, bytes);
-//			}
 		}
 	}
 }
-//		memset(recvBuf, '\0', MAX_LEN);
-//		//bytes = Recvfrom_flags(UDPsocket, recvBuf, MAX_LEN, &flags, (SA *)&GroupAddress, &len, &pktinfo);
-//
-//		bytes = recv(UDPsocket, recvBuf, MAX_LEN, 0);
-//		//printf("intf %d %d", pktinfo.ipi_ifindex, pktinfo.ipi_addr);
-//
-//		syslog(LOG_INFO, "intf %d %d", pktinfo.ipi_ifindex, pktinfo.ipi_addr);
-//
-//		if (bytes < 0) {
-//			syslog(LOG_ERR, "error in reading from multicast socket");
-//			exit(-1);
-//		}
-///*
-//                else if (bytes == 0)
-//			printf("zero bytes read\n");
-//*/
-//		else {		/* print the message to STDOUT */
-//			syslog(LOG_INFO, "message: %s", recvBuf);
-//			if (write(1, recvBuf, bytes) < 0) {
-//				syslog(LOG_ERR, "error in write to STDOUT ");
-//				exit(-1);
-//			}
-//
-//			if (sendto(UDPsocket, recvBuf, MAX_LEN, 0, (SA *) & GroupAddress, sizeof(GroupAddress)) < 0) {
-//						printf("error in sendto \n");
-//						exit(-1);
-//					}
-//		}
-//	}
-//
-//}
 
 void startSocketServer(int port) {
 	int sockfd;
@@ -250,9 +177,6 @@ void startSocketServer(int port) {
 
 			if (r)
 				syslog(LOG_ERR, "error creating client thread");
-			// close client socket
-//			close(clientSocket);
-//			syslog(LOG_INFO, "Client finished");
 		}
 	}
 }
